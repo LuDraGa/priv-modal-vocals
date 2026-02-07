@@ -13,18 +13,6 @@ The app uses:
 """
 
 import modal
-from fastapi import FastAPI
-import structlog
-
-# Configure structlog
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        structlog.processors.JSONRenderer(),
-    ],
-)
-
-logger = structlog.get_logger()
 
 # ============================================================================
 # Modal Configuration
@@ -61,6 +49,12 @@ image = (
 # These will be initialized at container startup
 _tts_engine = None
 _speaker_cache = None
+_logger = None
+
+
+def get_logger():
+    """Get logger instance (initialized in fastapi_app)."""
+    return _logger
 
 
 def get_tts_engine():
@@ -68,7 +62,9 @@ def get_tts_engine():
     global _tts_engine
     if _tts_engine is None:
         from coqui_service.engine import TTSEngine
+        import structlog
 
+        logger = structlog.get_logger()
         logger.info("tts_engine.initializing")
         _tts_engine = TTSEngine(model_path="/models/coqui")
         _tts_engine.load_model()
@@ -82,7 +78,9 @@ def get_speaker_cache():
     global _speaker_cache
     if _speaker_cache is None:
         from coqui_service.utils.speaker_cache import SpeakerCache
+        import structlog
 
+        logger = structlog.get_logger()
         logger.info("speaker_cache.initializing")
         _speaker_cache = SpeakerCache(volume_path="/models/coqui")
         logger.info("speaker_cache.initialized")
@@ -110,7 +108,21 @@ def fastapi_app():
     This function is called once per container startup.
     The returned FastAPI app handles all HTTP requests.
     """
+    from fastapi import FastAPI
+    import structlog
     from coqui_service.routes import create_routes
+
+    global _logger
+
+    # Configure structlog
+    structlog.configure(
+        processors=[
+            structlog.processors.TimeStamper(fmt="iso"),
+            structlog.processors.JSONRenderer(),
+        ],
+    )
+    logger = structlog.get_logger()
+    _logger = logger
 
     # Create FastAPI app
     web_app = FastAPI(
