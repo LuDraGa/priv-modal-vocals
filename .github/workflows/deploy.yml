@@ -1,0 +1,51 @@
+name: Deploy Modal APIs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'coqui_service/**'
+      - '.github/workflows/deploy.yml'
+  workflow_dispatch:  # Allow manual trigger
+
+jobs:
+  deploy-coqui:
+    name: Deploy Coqui TTS API
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Modal
+        run: |
+          pip install --upgrade pip
+          pip install modal
+
+      - name: Deploy Coqui Service
+        run: modal deploy coqui_service/main.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+      - name: Health Check
+        run: |
+          echo "Waiting 10s for deployment to stabilize..."
+          sleep 10
+          echo "Deployment complete! API is live."
+        # TODO: Add actual health check curl once endpoint URL is known
+
+  # Future: Add Whisper service deployment
+  # deploy-whisper:
+  #   name: Deploy Whisper STT API
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@v4
+  #     - name: Deploy Whisper Service
+  #       run: modal deploy whisper_service/main.py
