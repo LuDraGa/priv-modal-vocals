@@ -1,13 +1,16 @@
 """Audio processing utilities for TTS synthesis.
 
 Retrofitted from story_reels tts_v2/pipeline for Modal API use.
-Includes stitching, normalization, and WAV wrapping.
+Includes stitching, normalization, WAV wrapping, and validation.
 """
 
 import io
 import wave
+import tempfile
+import struct
 from array import array
-from typing import List
+from typing import List, Tuple, Optional
+from dataclasses import dataclass
 
 
 def stitch_audio_chunks(
@@ -210,3 +213,214 @@ def estimate_duration(
 
     frames = len(audio) / (sample_width * channels)
     return frames / sample_rate
+
+
+# ============================================================================
+# Audio Validation Utilities
+# ============================================================================
+
+@dataclass
+class AudioValidationResult:
+    """Result of audio validation."""
+
+    is_valid: bool
+    duration: Optional[float] = None
+    sample_rate: Optional[int] = None
+    channels: Optional[int] = None
+    error_message: Optional[str] = None
+    warning_message: Optional[str] = None
+
+
+def validate_audio_duration(
+    audio_bytes: bytes,
+    min_duration: float = 3.0,
+    max_duration: float = 30.0,
+    optimal_min: float = 6.0,
+    optimal_max: float = 10.0,
+) -> AudioValidationResult:
+    """Validate audio duration for voice cloning.
+
+    Args:
+        audio_bytes: Audio file bytes (WAV format)
+        min_duration: Minimum acceptable duration (seconds)
+        max_duration: Maximum acceptable duration (seconds)
+        optimal_min: Optimal minimum duration (seconds)
+        optimal_max: Optimal maximum duration (seconds)
+
+    Returns:
+        AudioValidationResult with duration info and validation status
+    """
+    try:
+        # Write to temp file and analyze with wave module
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=True) as f:
+            f.write(audio_bytes)
+            f.flush()
+
+            try:
+                with wave.open(f.name, 'rb') as wav:
+                    frames = wav.getnframes()
+                    rate = wav.getframerate()
+                    channels = wav.getnchannels()
+                    duration = frames / float(rate)
+
+                    # Check minimum duration
+                    if duration < min_duration:
+                        return AudioValidationResult(
+                            is_valid=False,
+                            duration=duration,
+                            sample_rate=rate,
+                            channels=channels,
+                            error_message=f"Audio too short ({duration:.1f}s). Minimum: {min_duration}s for voice cloning",
+                        )
+
+                    # Check maximum duration
+                    if duration > max_duration:
+                        return AudioValidationResult(
+                            is_valid=False,
+                            duration=duration,
+                            sample_rate=rate,
+                            channels=channels,
+                            error_message=f"Audio too long ({duration:.1f}s). Maximum: {max_duration}s",
+                        )
+
+                    # Check if within optimal range
+                    warning = None
+                    if duration < optimal_min or duration > optimal_max:
+                        warning = f"Audio duration ({duration:.1f}s) is acceptable but {optimal_min}-{optimal_max}s is optimal for best quality"
+
+                    return AudioValidationResult(
+                        is_valid=True,
+                        duration=duration,
+                        sample_rate=rate,
+                        channels=channels,
+                        warning_message=warning,
+                    )
+
+            except wave.Error as e:
+                return AudioValidationResult(
+                    is_valid=False,
+                    error_message=f"Invalid WAV file: {str(e)}",
+                )
+
+    except Exception as e:
+        return AudioValidationResult(
+            is_valid=False,
+            error_message=f"Audio validation failed: {str(e)}",
+        )
+
+
+def validate_audio_quality(
+    audio_bytes: bytes,
+    min_sample_rate: int = 16000,
+    preferred_sample_rate: int = 22050,
+) -> AudioValidationResult:
+    """Validate audio quality for voice cloning.
+
+    Args:
+        audio_bytes: Audio file bytes (WAV format)
+        min_sample_rate: Minimum acceptable sample rate
+        preferred_sample_rate: Preferred sample rate for best quality
+
+    Returns:
+        AudioValidationResult with quality info
+    """
+    try:
+        with tempfile.NamedTemporaryFile(suffix='.wav', delete=True) as f:
+            f.write(audio_bytes)
+            f.flush()
+
+            try:
+                with wave.open(f.name, 'rb') as wav:
+                    sample_rate = wav.getframerate()
+                    channels = wav.getnchannels()
+                    sample_width = wav.getsampwidth()
+
+                    # Check sample rate
+                    if sample_rate < min_sample_rate:
+                        return AudioValidationResult(
+                            is_valid=False,
+                            sample_rate=sample_rate,
+                            channels=channels,
+                            error_message=f"Sample rate too low ({sample_rate}Hz). Minimum: {min_sample_rate}Hz",
+                        )
+
+                    # Generate warnings for non-optimal settings
+                    warnings = []
+                    if sample_rate < preferred_sample_rate:
+                        warnings.append(f"Sample rate {sample_rate}Hz is below optimal {preferred_sample_rate}Hz")
+
+                    if channels > 1:
+                        warnings.append(f"Audio is {channels}-channel (stereo). Mono is preferred for voice cloning")
+
+                    if sample_width < 2:
+                        warnings.append(f"Audio is {sample_width*8}-bit. 16-bit or higher recommended")
+
+                    warning_msg = "; ".join(warnings) if warnings else None
+
+                    return AudioValidationResult(
+                        is_valid=True,
+                        sample_rate=sample_rate,
+                        channels=channels,
+                        warning_message=warning_msg,
+                    )
+
+            except wave.Error as e:
+                return AudioValidationResult(
+                    is_valid=False,
+                    error_message=f"Invalid WAV file: {str(e)}",
+                )
+
+    except Exception as e:
+        return AudioValidationResult(
+            is_valid=False,
+            error_message=f"Quality validation failed: {str(e)}",
+        )
+
+
+def validate_reference_audio(
+    audio_bytes: bytes,
+    max_size_mb: float = 10.0,
+) -> AudioValidationResult:
+    """Comprehensive validation for reference audio files.
+
+    Args:
+        audio_bytes: Audio file bytes
+        max_size_mb: Maximum file size in MB
+
+    Returns:
+        AudioValidationResult with comprehensive validation
+    """
+    # Check file size
+    size_mb = len(audio_bytes) / (1024 * 1024)
+    if size_mb > max_size_mb:
+        return AudioValidationResult(
+            is_valid=False,
+            error_message=f"File too large ({size_mb:.1f}MB). Maximum: {max_size_mb}MB",
+        )
+
+    # Validate duration
+    duration_result = validate_audio_duration(audio_bytes)
+    if not duration_result.is_valid:
+        return duration_result
+
+    # Validate quality
+    quality_result = validate_audio_quality(audio_bytes)
+    if not quality_result.is_valid:
+        return quality_result
+
+    # Combine warnings
+    warnings = []
+    if duration_result.warning_message:
+        warnings.append(duration_result.warning_message)
+    if quality_result.warning_message:
+        warnings.append(quality_result.warning_message)
+
+    warning_msg = "; ".join(warnings) if warnings else None
+
+    return AudioValidationResult(
+        is_valid=True,
+        duration=duration_result.duration,
+        sample_rate=quality_result.sample_rate,
+        channels=quality_result.channels,
+        warning_message=warning_msg,
+    )

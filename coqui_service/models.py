@@ -76,3 +76,22 @@ class ErrorResponse(BaseModel):
     """Standard error response model."""
 
     error: ErrorDetail
+
+
+class APIEndpointInfo(BaseModel):
+    """Information about a single API endpoint."""
+
+    endpoint: str = Field(..., description="Endpoint path")
+    method: str = Field(..., description="HTTP method")
+    description: str = Field(..., description="One-line description")
+    inputs: dict = Field(..., description="Input parameters and types")
+    outputs: dict = Field(..., description="Output format and headers")
+    example: Optional[str] = Field(None, description="Example curl command")
+
+
+class APIInfoResponse(BaseModel):
+    """Response model for API info endpoint."""
+
+    service: str = Field(..., description="Service name")
+    version: str = Field(..., description="API version")
+    endpoints: List[APIEndpointInfo] = Field(..., description="List of available endpoints")

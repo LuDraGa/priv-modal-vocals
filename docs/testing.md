@@ -87,26 +87,74 @@ Expected:
 
 ### 5. Voice Cloning Test
 
-Prepare a reference audio file (WAV, MP3, or M4A format, <10MB):
+#### Single Reference Audio
+
+Prepare a reference audio file (WAV, MP3, or M4A format, <10MB, 3-30 seconds duration):
 
 ```bash
 curl -X POST https://[DEV_ENDPOINT]/voice-clone \
   -F "text=This is a test of voice cloning technology." \
   -F "language=en" \
   -F "reference_audio=@path/to/reference_audio.wav" \
-  --output test_clone.wav
+  --output test_clone_single.wav
+```
+
+#### Multiple Reference Audio (Better Quality)
+
+For improved cloning quality, provide 2-5 reference audio files of the same speaker:
+
+```bash
+curl -X POST https://[DEV_ENDPOINT]/voice-clone \
+  -F "text=This is a test of voice cloning with multiple references." \
+  -F "language=en" \
+  -F "reference_audio=@path/to/reference1.wav" \
+  -F "reference_audio=@path/to/reference2.wav" \
+  -F "reference_audio=@path/to/reference3.wav" \
+  --output test_clone_multi.wav
 ```
 
 Verify:
 ```bash
-file test_clone.wav
-afplay test_clone.wav  # macOS
+file test_clone_single.wav
+afplay test_clone_single.wav  # macOS
+
+# Check response headers for validation warnings
+curl -X POST https://[DEV_ENDPOINT]/voice-clone \
+  -F "text=Test" \
+  -F "language=en" \
+  -F "reference_audio=@reference.wav" \
+  -I --output /dev/null
+# Look for X-Validation-Warnings header
 ```
 
 Expected:
 - HTTP 200 status
 - Voice matches reference audio characteristics
 - Clear, natural-sounding speech
+- Response headers include:
+  - `X-Reference-Count`: Number of reference files used
+  - `X-Validation-Warnings`: Any quality warnings (if applicable)
+  - `X-Duration-Sec`: Generated audio duration
+
+#### Reference Audio Requirements
+
+**Duration:**
+- Minimum: 3 seconds
+- Optimal: 6-10 seconds (best quality)
+- Maximum: 30 seconds
+
+**Quality:**
+- Sample rate: 16kHz minimum, 22kHz+ optimal
+- Format: WAV, MP3, or M4A
+- Channels: Mono preferred (stereo acceptable)
+- File size: Max 10MB per file
+- Content: Clean audio, single speaker, no background noise
+
+**Validation Errors:**
+- 400: Reference audio too short (<3s) or too long (>30s)
+- 400: Sample rate too low (<16kHz)
+- 413: File too large (>10MB)
+- 400: Invalid audio format
 
 ### 6. API Documentation
 

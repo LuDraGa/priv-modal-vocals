@@ -156,14 +156,15 @@ class TTSEngine:
     def synthesize_clone(
         self,
         text: str,
-        reference_audio_bytes: bytes,
+        reference_audio_bytes: List[bytes],
         language: str = "en",
     ) -> bytes:
         """Synthesize speech using voice cloning.
 
         Args:
             text: Text to synthesize
-            reference_audio_bytes: Reference audio file bytes (WAV, MP3, M4A)
+            reference_audio_bytes: List of reference audio file bytes (WAV, MP3, M4A)
+                                  Multiple files improve quality through interpolation
             language: Language code
 
         Returns:
@@ -171,28 +172,38 @@ class TTSEngine:
 
         Raises:
             RuntimeError: If synthesis fails
+            ValueError: If reference_audio_bytes is empty
         """
         if not self._loaded:
             raise RuntimeError("Model not loaded. Call load_model() first.")
 
-        # Write reference audio to temp file
-        temp_file = None
+        if not reference_audio_bytes:
+            raise ValueError("At least one reference audio file is required")
+
+        # Write reference audio to temp files
+        temp_files = []
         try:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
-                f.write(reference_audio_bytes)
-                temp_file = f.name
+            # Create temp file for each reference audio
+            for idx, audio_bytes in enumerate(reference_audio_bytes):
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+                    f.write(audio_bytes)
+                    temp_files.append(f.name)
 
             logger.info(
                 "tts_engine.clone.start",
                 language=language,
                 text_len=len(text),
-                ref_audio_size=len(reference_audio_bytes),
+                ref_audio_count=len(reference_audio_bytes),
+                ref_audio_sizes=[len(b) for b in reference_audio_bytes],
             )
 
             # Synthesize with voice cloning
+            # If single file, pass string; if multiple, pass list
+            speaker_wav = temp_files[0] if len(temp_files) == 1 else temp_files
+
             audio = self.tts.tts(
                 text=text,
-                speaker_wav=temp_file,
+                speaker_wav=speaker_wav,
                 language=language,
                 split_sentences=False,
             )
@@ -203,6 +214,7 @@ class TTSEngine:
             logger.info(
                 "tts_engine.clone.complete",
                 audio_size=len(pcm_bytes),
+                ref_audio_count=len(temp_files),
             )
 
             return pcm_bytes
@@ -212,12 +224,13 @@ class TTSEngine:
             raise RuntimeError(f"Voice cloning failed: {e}") from e
 
         finally:
-            # Clean up temp file
-            if temp_file and os.path.exists(temp_file):
-                try:
-                    os.remove(temp_file)
-                except OSError:
-                    logger.warning("tts_engine.cleanup_failed", path=temp_file)
+            # Clean up all temp files
+            for temp_file in temp_files:
+                if os.path.exists(temp_file):
+                    try:
+                        os.remove(temp_file)
+                    except OSError:
+                        logger.warning("tts_engine.cleanup_failed", path=temp_file)
 
     def get_speakers(self) -> List[str]:
         """Get list of available built-in speakers.
