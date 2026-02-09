@@ -12,6 +12,8 @@ from whisper_service.models import (
     LanguageInfo,
     Segment,
     WordSegment,
+    APIInfoResponse,
+    APIEndpointInfo,
 )
 from whisper_service.utils.audio_utils import convert_to_wav, cleanup_temp_file
 
@@ -218,3 +220,75 @@ def create_routes(app: FastAPI, engine) -> None:
             # Clean up temporary WAV file
             if wav_path:
                 cleanup_temp_file(wav_path)
+
+    # ========================================================================
+    # API Info Endpoint
+    # ========================================================================
+    @app.get(
+        "/api-info",
+        response_model=APIInfoResponse,
+        summary="API Documentation",
+        description="Get comprehensive API documentation for all endpoints",
+        tags=["Info"],
+    )
+    async def api_info():
+        """Get API usage documentation for all endpoints."""
+        return APIInfoResponse(
+            service="WhisperX STT API",
+            version="0.1.0",
+            endpoints=[
+                APIEndpointInfo(
+                    endpoint="/transcribe",
+                    method="POST",
+                    description="Transcribe audio with word-level timestamps for karaoke-style highlighting",
+                    inputs={
+                        "file": "Audio file (WAV, MP3, M4A, FLAC, etc.) - multipart/form-data",
+                        "language": "Optional language code (en, es, fr, etc.) - auto-detected if not provided",
+                    },
+                    outputs={
+                        "text": "Full transcribed text",
+                        "segments": "List of segments with word-level timestamps (each word has: word, start, end, score)",
+                        "language": "Detected or specified language code",
+                        "duration": "Audio duration in seconds",
+                    },
+                    example=(
+                        'curl -X POST "https://[ENDPOINT]/transcribe" \\\n'
+                        '  -F "file=@audio.mp3" \\\n'
+                        '  -F "language=en" | jq'
+                    ),
+                ),
+                APIEndpointInfo(
+                    endpoint="/languages",
+                    method="GET",
+                    description="Get list of all 99+ supported languages",
+                    outputs={
+                        "languages": "Array of {code: str, name: str} objects",
+                        "total": "Total number of supported languages",
+                    },
+                    example='curl "https://[ENDPOINT]/languages" | jq',
+                ),
+                APIEndpointInfo(
+                    endpoint="/health",
+                    method="GET",
+                    description="Service health check with GPU and model status",
+                    outputs={
+                        "status": "Service status (healthy/unhealthy)",
+                        "model": "Loaded Whisper model (large-v3-turbo)",
+                        "gpu_available": "GPU availability (true/false)",
+                        "alignment_available": "Alignment model availability (true/false)",
+                    },
+                    example='curl "https://[ENDPOINT]/health" | jq',
+                ),
+                APIEndpointInfo(
+                    endpoint="/api-info",
+                    method="GET",
+                    description="Get this API documentation",
+                    outputs={
+                        "service": "Service name",
+                        "version": "API version",
+                        "endpoints": "Array of endpoint documentation objects",
+                    },
+                    example='curl "https://[ENDPOINT]/api-info" | jq',
+                ),
+            ],
+        )

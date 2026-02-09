@@ -105,3 +105,26 @@ class HealthResponse(BaseModel):
     model: str = Field(..., description="Loaded Whisper model", example="large-v3-turbo")
     gpu_available: bool = Field(..., description="GPU availability")
     alignment_available: bool = Field(..., description="Alignment model availability")
+
+
+# ============================================================================
+# API Documentation Models
+# ============================================================================
+
+class APIEndpointInfo(BaseModel):
+    """Information about a single API endpoint."""
+
+    endpoint: str = Field(..., description="Endpoint path")
+    method: str = Field(..., description="HTTP method")
+    description: str = Field(..., description="Endpoint description")
+    inputs: Optional[dict] = Field(None, description="Input parameters")
+    outputs: Optional[dict] = Field(None, description="Output schema")
+    example: str = Field(..., description="Example curl command")
+
+
+class APIInfoResponse(BaseModel):
+    """API documentation response."""
+
+    service: str = Field(..., description="Service name")
+    version: str = Field(..., description="API version")
+    endpoints: List[APIEndpointInfo] = Field(..., description="List of available endpoints")
