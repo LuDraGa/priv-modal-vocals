@@ -10,13 +10,31 @@ on:
   workflow_dispatch:  # Allow manual trigger
 
 jobs:
+  detect-changes:
+    name: Detect Changed Services
+    runs-on: ubuntu-latest
+    outputs:
+      coqui: ${{ steps.filter.outputs.coqui }}
+      whisper: ${{ steps.filter.outputs.whisper }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Check Changed Files
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            coqui:
+              - 'coqui_service/**'
+            whisper:
+              - 'whisper_service/**'
+
   deploy-coqui:
     name: Deploy Coqui TTS API
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.modified, 'coqui_service/') ||
-      contains(github.event.head_commit.added, 'coqui_service/')
+    needs: detect-changes
+    if: needs.detect-changes.outputs.coqui == 'true' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout Code
@@ -48,10 +66,8 @@ jobs:
   deploy-whisper:
     name: Deploy WhisperX STT API
     runs-on: ubuntu-latest
-    if: |
-      github.event_name == 'workflow_dispatch' ||
-      contains(github.event.head_commit.modified, 'whisper_service/') ||
-      contains(github.event.head_commit.added, 'whisper_service/')
+    needs: detect-changes
+    if: needs.detect-changes.outputs.whisper == 'true' || github.event_name == 'workflow_dispatch'
 
     steps:
       - name: Checkout Code
