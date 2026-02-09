@@ -20,8 +20,8 @@ volume = modal.Volume.from_name("coqui-models-v2", create_if_missing=True)
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .pip_install(
-        "torch>=2.1.0",
-        "torchaudio>=2.1.0",
+        "torch==2.4.1",  # Pin to 2.4.1 for consistency with whisper_service
+        "torchaudio==2.4.1",
         "transformers<5.0",  # Pin to 4.x for coqui-tts compatibility
         "coqui-tts[codec]>=0.27.3",  # Include codec extra for PyTorch 2.9+ audio I/O
         "structlog>=25.5.0",
