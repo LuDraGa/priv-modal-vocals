@@ -6,6 +6,8 @@ on:
     paths:
       - 'coqui_service/**'
       - 'whisper_service/**'
+      - 'vc_service/**'
+      - 'shared/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:  # Allow manual trigger
 
@@ -16,6 +18,7 @@ jobs:
     outputs:
       coqui: ${{ steps.filter.outputs.coqui }}
       whisper: ${{ steps.filter.outputs.whisper }}
+      vc: ${{ steps.filter.outputs.vc }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -27,8 +30,12 @@ jobs:
           filters: |
             coqui:
               - 'coqui_service/**'
+              - 'shared/**'
             whisper:
               - 'whisper_service/**'
+            vc:
+              - 'vc_service/**'
+              - 'shared/**'
 
   deploy-coqui:
     name: Deploy Coqui TTS API
@@ -94,4 +101,37 @@ jobs:
           echo "Waiting 10s for deployment to stabilize..."
           sleep 10
           echo "Deployment complete! WhisperX API is live."
+        # TODO: Add actual health check curl once endpoint URL is known
+
+  deploy-vc:
+    name: Deploy OpenVoice v2 Voice Conversion API
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.vc == 'true' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Modal
+        run: |
+          pip install --upgrade pip
+          pip install modal
+
+      - name: Deploy Voice Conversion Service
+        run: modal deploy vc_service/main.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+      - name: Health Check
+        run: |
+          echo "Waiting 10s for deployment to stabilize..."
+          sleep 10
+          echo "Deployment complete! OpenVoice v2 API is live."
         # TODO: Add actual health check curl once endpoint URL is known

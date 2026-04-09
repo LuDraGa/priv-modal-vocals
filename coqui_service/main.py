@@ -40,6 +40,7 @@ image = (
     )
     .run_commands("apt-get update && apt-get install -y ffmpeg")  # Required by Coqui
     .add_local_python_source("coqui_service")  # Mount coqui_service package (Modal 1.0 API)
+    .add_local_python_source("shared")         # Shared audio utilities
 )
 
 # ============================================================================

@@ -1,7 +1,4 @@
-"""Audio processing utilities — re-exported from shared.audio.
-
-All implementations live in shared/audio.py for reuse across services.
-"""
+"""Audio utilities — re-exported from shared.audio."""
 
 from shared.audio import (
     stitch_audio_chunks,
