@@ -134,6 +134,20 @@ def fastapi_app():
         redoc_url="/redoc",
     )
 
+    # CORS middleware
+    from fastapi.middleware.cors import CORSMiddleware
+    web_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+        expose_headers=[
+            "X-Sample-Rate", "X-Duration-Sec", "X-Engine", "X-Speaker",
+            "X-Chunks", "X-Mode", "X-Reference-Count", "X-Validation-Warnings",
+        ],
+    )
+
     # Startup event: Pre-load model
     @web_app.on_event("startup")
     async def startup():

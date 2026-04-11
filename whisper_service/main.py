@@ -91,6 +91,16 @@ def fastapi_app():
         redoc_url="/redoc",
     )
 
+    # CORS middleware
+    from fastapi.middleware.cors import CORSMiddleware
+    web_app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     # Initialize engine (global per container)
     engine = WhisperXEngine(cache_dir="/models/hf_cache")
 
