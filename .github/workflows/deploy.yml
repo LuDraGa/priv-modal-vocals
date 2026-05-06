@@ -7,6 +7,7 @@ on:
       - 'coqui_service/**'
       - 'whisper_service/**'
       - 'vc_service/**'
+      - 'dia_service/**'
       - 'shared/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:  # Allow manual trigger
@@ -19,6 +20,7 @@ jobs:
       coqui: ${{ steps.filter.outputs.coqui }}
       whisper: ${{ steps.filter.outputs.whisper }}
       vc: ${{ steps.filter.outputs.vc }}
+      dia: ${{ steps.filter.outputs.dia }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -35,6 +37,9 @@ jobs:
               - 'whisper_service/**'
             vc:
               - 'vc_service/**'
+              - 'shared/**'
+            dia:
+              - 'dia_service/**'
               - 'shared/**'
 
   deploy-coqui:
@@ -134,4 +139,37 @@ jobs:
           echo "Waiting 10s for deployment to stabilize..."
           sleep 10
           echo "Deployment complete! OpenVoice v2 API is live."
+        # TODO: Add actual health check curl once endpoint URL is known
+
+  deploy-dia:
+    name: Deploy Dia2 TTS API
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dia == 'true' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Modal
+        run: |
+          pip install --upgrade pip
+          pip install modal
+
+      - name: Deploy Dia2 Service
+        run: modal deploy dia_service/main.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+      - name: Health Check
+        run: |
+          echo "Waiting 10s for deployment to stabilize..."
+          sleep 10
+          echo "Deployment complete! Dia2 API is live."
         # TODO: Add actual health check curl once endpoint URL is known

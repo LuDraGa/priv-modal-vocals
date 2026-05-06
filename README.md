@@ -20,6 +20,13 @@ Production-ready Text-to-Speech and Speech-to-Text APIs hosted on Modal, designe
 - **Multi-Format Support**: WAV, MP3, M4A, FLAC auto-converted to 16kHz mono
 - **Fast Cold Starts**: 5-8s model load from Volume with memory snapshotting
 
+### Dia2 Expressive TTS API (✅ Implemented)
+- **Dia2-1B**: Nari Labs expressive English TTS and dialogue model
+- **Dialogue Generation**: Native `[S1]` / `[S2]` multi-speaker script support
+- **Reference Conditioning**: One-shot prefix-audio conditioned TTS
+- **Reusable Voice Profiles**: Store reference audio, transcript, consent, and rich metadata
+- **Cost-Conscious Modal Hosting**: Scale-to-zero T4 deployment with compute headers
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -55,6 +62,10 @@ modal run coqui_service/download_models.py
 # Download WhisperX models (~4GB) to Modal Volume
 # This is a one-time setup (takes 10-20 minutes)
 modal run whisper_service/download_models.py
+
+# Download Dia2-1B assets to Modal Volume
+# This is a one-time setup
+modal run dia_service/download_models.py
 ```
 
 ### 4. Test Locally
@@ -67,6 +78,11 @@ modal serve coqui_service/main.py
 # Serve WhisperX STT dev endpoint (creates temporary URL)
 modal serve whisper_service/main.py
 # Test endpoints: GET /health, GET /languages, POST /transcribe, GET /api-info
+
+# Serve Dia2 expressive TTS dev endpoint (creates temporary URL)
+modal serve dia_service/main.py
+# Test endpoints: GET /health, GET /api-info, POST /tts, POST /dialogue,
+# POST /tts-with-upload, /voice-profiles CRUD
 ```
 
 ### 5. Deploy to Production
@@ -74,6 +90,7 @@ modal serve whisper_service/main.py
 ```bash
 # Manual deployment
 modal deploy coqui_service/main.py
+modal deploy dia_service/main.py
 
 # Or push to GitHub (auto-deploys via GitHub Actions)
 git add .
@@ -90,6 +107,10 @@ git push origin main
 ### WhisperX STT Base URLs
 - **Production**: `https://abhirooprasad--whisperx-apis-fastapi-app.modal.run`
 - **Dev**: `https://yourname--whisperx-apis-dev.modal.run` (temporary, via `modal serve`)
+
+### Dia2 TTS Base URLs
+- **Production**: created by `modal deploy dia_service/main.py`
+- **Dev**: temporary URL from `modal serve dia_service/main.py`
 
 ### GET /health
 Health check endpoint.
