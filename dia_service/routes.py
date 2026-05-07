@@ -63,6 +63,23 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
             ],
             endpoints=[
                 APIEndpointInfo(
+                    endpoint="/health",
+                    method="GET",
+                    description="Check service health, lazy model-load state, and runtime device.",
+                    inputs={},
+                    outputs={
+                        "content_type": "application/json",
+                        "fields": {
+                            "status": "healthy/unhealthy",
+                            "model_loaded": "false until the first generation request lazy-loads Dia2",
+                            "model": DIA_MODEL_NAME,
+                            "gpu": "not_loaded/cuda/cpu/unknown",
+                            "version": "service version",
+                        },
+                    },
+                    example="curl https://[ENDPOINT]/health | jq",
+                ),
+                APIEndpointInfo(
                     endpoint="/tts",
                     method="POST",
                     description="Generate simple single-speaker speech from text.",
@@ -154,8 +171,50 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     method="GET",
                     description="List saved reusable voice profiles.",
                     inputs={},
-                    outputs={"content_type": "application/json"},
+                    outputs={
+                        "content_type": "application/json",
+                        "fields": {
+                            "profiles": "profile summaries with id, name, gender, accent, language, style_tags, use_case, quality_rating, created_at",
+                            "count": "number of profiles",
+                        },
+                    },
                     example="curl https://[ENDPOINT]/voice-profiles | jq",
+                ),
+                APIEndpointInfo(
+                    endpoint="/voice-profiles/{id}",
+                    method="GET",
+                    description="Inspect one saved voice profile, including transcript and reference audio metadata.",
+                    inputs={
+                        "id": "voice profile id returned by POST /voice-profiles or GET /voice-profiles"
+                    },
+                    outputs={
+                        "content_type": "application/json",
+                        "fields": {
+                            "id/name": "profile identity",
+                            "reference_transcript": "stored transcript supplied at profile creation",
+                            "reference_audio_path": "Modal Volume path for the stored reference WAV",
+                            "reference_duration_sec/reference_sample_rate": "reference audio metadata when available",
+                            "gender/accent/language/style_tags/use_case/quality_rating/notes": "caller-supplied labels",
+                            "consent_confirmed": "whether storage consent was confirmed",
+                        },
+                    },
+                    example="curl https://[ENDPOINT]/voice-profiles/[PROFILE_ID] | jq",
+                ),
+                APIEndpointInfo(
+                    endpoint="/voice-profiles/{id}",
+                    method="DELETE",
+                    description="Delete one saved voice profile and its stored reference audio.",
+                    inputs={
+                        "id": "voice profile id to delete; use when a profile is bad, mistaken, or consent is revoked"
+                    },
+                    outputs={
+                        "content_type": "application/json",
+                        "fields": {
+                            "deleted": "true when deletion succeeds",
+                            "id": "deleted profile id",
+                        },
+                    },
+                    example="curl -X DELETE https://[ENDPOINT]/voice-profiles/[PROFILE_ID]",
                 ),
             ],
         )
