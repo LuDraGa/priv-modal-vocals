@@ -12,7 +12,7 @@ import sys
 
 import modal
 
-from dia_service.constants import DIA_MODEL_ID
+from dia_service.constants import DIA_MODEL_ID, MIMI_MODEL_ID
 
 app = modal.App("dia2-download-models")
 
@@ -39,7 +39,6 @@ image = (
 
 @app.function(
     image=image,
-    gpu="T4",
     volumes={"/models": volume},
     timeout=1800,
 )
@@ -55,12 +54,15 @@ def download_models():
 
     print(f"Downloading Dia2 assets from {DIA_MODEL_ID}...")
     snapshot_download(repo_id=DIA_MODEL_ID, cache_dir="/models/dia2/hf_cache")
+    print(f"Downloading Mimi codec assets from {MIMI_MODEL_ID}...")
+    snapshot_download(repo_id=MIMI_MODEL_ID, cache_dir="/models/dia2/hf_cache")
     print("Dia2 model files cached. Runtime initialization is deferred to modal serve/deploy.")
 
     volume.commit()
     return {
         "success": True,
         "model": DIA_MODEL_ID,
+        "mimi": MIMI_MODEL_ID,
         "cache_dir": "/models/dia2/hf_cache",
     }
 

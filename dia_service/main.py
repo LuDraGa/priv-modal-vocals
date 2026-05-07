@@ -86,7 +86,7 @@ def get_profile_store():
 
 @app.function(
     image=image,
-    gpu="T4",
+    gpu="A10G",
     volumes={"/models": volume},
     min_containers=0,
     timeout=600,

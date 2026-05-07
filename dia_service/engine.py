@@ -16,7 +16,7 @@ from typing import Optional
 import numpy as np
 import structlog
 
-from dia_service.constants import DIA_MODEL_ID, DIA_MODEL_NAME
+from dia_service.constants import DIA_MODEL_ID, DIA_MODEL_NAME, MIMI_MODEL_ID
 
 logger = structlog.get_logger()
 
@@ -49,6 +49,7 @@ class DiaEngine:
         self.model = None
         self.sample_rate = 24000
         self._loaded = False
+        self._asset_snapshot = None
 
     def load_model(self) -> None:
         """Load Dia2 from Hugging Face cache / Modal Volume."""
@@ -59,6 +60,8 @@ class DiaEngine:
         os.environ["HF_HOME"] = str(self.cache_dir)
         os.environ["HF_HUB_CACHE"] = str(self.cache_dir)
         os.environ["TORCH_HOME"] = str(self.cache_dir / "torch")
+        os.environ["HF_HUB_OFFLINE"] = "1"
+        os.environ["TRANSFORMERS_OFFLINE"] = "1"
         if "/opt/dia2" not in sys.path:
             sys.path.insert(0, "/opt/dia2")
 
@@ -74,19 +77,30 @@ class DiaEngine:
             if runtime_device is None:
                 runtime_device = "cuda" if torch.cuda.is_available() else "cpu"
 
+            snapshot_path = self._find_cached_snapshot()
+            mimi_path = self._find_cached_snapshot(MIMI_MODEL_ID)
+            config_path = snapshot_path / "config.json"
+            weights_path = snapshot_path / "model.safetensors"
+
             logger.info(
                 "dia_engine.loading",
                 repo_id=self.repo_id,
+                asset_snapshot=str(snapshot_path),
+                mimi_snapshot=str(mimi_path),
                 device=runtime_device,
                 dtype=self.dtype,
                 cache_dir=str(self.cache_dir),
             )
 
-            self.model = Dia2.from_repo(
-                self.repo_id,
+            self.model = Dia2.from_local(
+                config_path=config_path,
+                weights_path=weights_path,
+                tokenizer_id=str(snapshot_path),
+                mimi_id=str(mimi_path),
                 device=runtime_device,
                 dtype=self.dtype,
             )
+            self._asset_snapshot = snapshot_path
             self.device = runtime_device
             self.sample_rate = int(self.model.sample_rate)
             self._loaded = True
@@ -101,6 +115,32 @@ class DiaEngine:
         except Exception as e:
             logger.error("dia_engine.load_failed", error=str(e))
             raise RuntimeError(f"Failed to load Dia2 model: {e}") from e
+
+    def _find_cached_snapshot(self, repo_id: str = DIA_MODEL_ID) -> Path:
+        """Return the local Hugging Face snapshot path for cached repo assets."""
+        repo_cache_dir = self.cache_dir / f"models--{repo_id.replace('/', '--')}"
+        snapshots_dir = repo_cache_dir / "snapshots"
+        if not snapshots_dir.exists():
+            raise FileNotFoundError(
+                f"Cache missing for {repo_id} at {snapshots_dir}. "
+                "Run modal run dia_service/download_models.py"
+            )
+
+        candidates = sorted(
+            snapshots_dir.iterdir(),
+            key=lambda path: path.stat().st_mtime,
+            reverse=True,
+        )
+        for snapshot in candidates:
+            if repo_id == DIA_MODEL_ID:
+                if (snapshot / "config.json").exists() and (snapshot / "model.safetensors").exists():
+                    return snapshot
+            elif any(snapshot.iterdir()):
+                return snapshot
+
+        raise FileNotFoundError(
+            f"No complete cached snapshot for {repo_id} under {snapshots_dir}"
+        )
 
     def generate(
         self,
