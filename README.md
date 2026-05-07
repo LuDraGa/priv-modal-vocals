@@ -21,11 +21,11 @@ Production-ready Text-to-Speech and Speech-to-Text APIs hosted on Modal, designe
 - **Fast Cold Starts**: 5-8s model load from Volume with memory snapshotting
 
 ### Dia2 Expressive TTS API (✅ Implemented)
-- **Dia2-1B**: Nari Labs expressive English TTS and dialogue model
+- **Dia2-1B + Dia2-2B**: Nari Labs expressive English TTS and dialogue models
 - **Dialogue Generation**: Native `[S1]` / `[S2]` multi-speaker script support
 - **Reference Conditioning**: One-shot prefix-audio conditioned TTS
 - **Reusable Voice Profiles**: Store reference audio, transcript, consent, and rich metadata
-- **Cost-Conscious Modal Hosting**: Scale-to-zero T4 deployment with compute headers
+- **Cost-Conscious Modal Hosting**: Scale-to-zero L40S deployment with compute headers
 
 ## Quick Start
 
@@ -63,7 +63,7 @@ modal run coqui_service/download_models.py
 # This is a one-time setup (takes 10-20 minutes)
 modal run whisper_service/download_models.py
 
-# Download Dia2-1B assets to Modal Volume
+# Download Dia2-1B, Dia2-2B, and shared Mimi assets to Modal Volume
 # This is a one-time setup
 modal run dia_service/download_models.py
 ```
@@ -344,6 +344,9 @@ Based on Modal pricing (as of 2026):
 **Total for 10k requests**: ~$17/month
 
 **Free Tier**: Modal provides $30/month credit, sufficient for ~15k requests.
+
+Dia2 has separate rough run-cost tables for 1B/2B and L40S planning in
+`docs/dia_service.md`.
 
 ## Troubleshooting
 

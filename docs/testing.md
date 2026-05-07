@@ -209,8 +209,8 @@ modal run dia_service/download_models.py
 
 Expected:
 - Model assets stored in Modal Volume `dia2-models-v1`
-- Runtime initializes on T4 if available
-- Output includes model id and cache path
+- Runtime uses L40S in the deployed Dia2 app
+- Output includes 1B/2B model ids and local Volume paths
 
 ### 2. Local Development Server
 
@@ -220,7 +220,7 @@ modal serve dia_service/main.py
 
 Expected:
 - Dev endpoint URL from Modal
-- Model loads from `/models/dia2/hf_cache`
+- Model loads from `/models/dia2/local/Dia2-1B` or `/models/dia2/local/Dia2-2B`
 - Logs show `dia_engine.initialized` and `fastapi.startup.ready`
 
 ### 3. Health Check
@@ -235,7 +235,7 @@ Expected response:
 {
   "status": "healthy",
   "model_loaded": true,
-  "model": "Dia2-1B",
+  "model": "Dia2-1B/Dia2-2B",
   "gpu": "cuda",
   "version": "0.1.0"
 }
@@ -246,7 +246,7 @@ Expected response:
 ```bash
 curl -X POST https://[DEV_ENDPOINT]/tts \
   -H "Content-Type: application/json" \
-  -d '{"text": "Hello from the Dia2 Modal API.", "seed": 1234}' \
+  -d '{"text": "Hello from the Dia2 Modal API.", "model_size": "1b", "seed": 1234}' \
   --output dia_tts.wav
 ```
 
@@ -383,13 +383,14 @@ modal run coqui_service/download_models.py
 
 ## Performance Benchmarks
 
-Expected performance (T4 GPU):
+Expected performance varies by `model_size` and GPU. The deployed Dia2 runtime
+uses L40S so both Dia2-1B and experimental Dia2-2B can fit safely.
 
 | Metric | Value |
 |--------|-------|
-| Cold start (no snapshot) | ~15-20s |
-| Cold start (with snapshot) | ~3s |
-| Synthesis time (50 chars) | ~3-4s |
+| Dia2-1B cold short TTS on A10 | ~40s total, ~16s compute |
+| Dia2-1B warm short TTS on A10 | ~31s total, ~11s compute |
+| Dia2-2B L40S planning estimate | ~1.5-2.5x Dia2-1B until benchmarked |
 | Sample rate | 24kHz |
 | Audio format | 16-bit PCM WAV |
 

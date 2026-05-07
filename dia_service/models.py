@@ -1,14 +1,20 @@
 """Pydantic models for the Dia2 TTS API."""
 
 from datetime import datetime
-from typing import Dict, List, Optional
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field, field_validator
+
+from dia_service.constants import DEFAULT_DIA_MODEL_SIZE
 
 
 class GenerationControls(BaseModel):
     """Common generation controls accepted by Dia2 endpoints."""
 
+    model_size: Literal["1b", "2b"] = Field(
+        default=DEFAULT_DIA_MODEL_SIZE,
+        description="Dia2 checkpoint size. 2b is experimental and more expensive.",
+    )
     temperature: float = Field(default=0.8, gt=0.0, le=2.0)
     top_k: int = Field(default=50, ge=1, le=500)
     cfg_scale: float = Field(default=2.0, gt=0.0, le=10.0)

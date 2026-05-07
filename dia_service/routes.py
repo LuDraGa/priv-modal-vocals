@@ -12,7 +12,7 @@ import structlog
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import Response
 
-from dia_service.constants import DIA_MODEL_NAME
+from dia_service.constants import DEFAULT_DIA_MODEL_SIZE, DIA_MODEL_NAME, DIA_MODELS
 from dia_service.engine import DiaEngine
 from dia_service.models import (
     APIEndpointInfo,
@@ -43,7 +43,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
         return HealthResponse(
             status="healthy",
             model_loaded=engine._loaded,
-            model=DIA_MODEL_NAME,
+            model=f"{DIA_MODEL_NAME}/Dia2-2B",
             gpu=engine.device or "unknown",
             version="0.1.0",
         )
@@ -54,9 +54,10 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
         return APIInfoResponse(
             service="Dia2 Expressive TTS API",
             version="0.1.0",
-            model=DIA_MODEL_NAME,
+            model=f"{DIA_MODEL_NAME}/Dia2-2B",
             notes=[
                 "Dia2 v1 here is English-only batch WAV generation.",
+                "model_size defaults to 1b; 2b is experimental, heavier, and hosted on L40S.",
                 "Dia2 has no built-in fixed voice catalog; /voice-profiles creates one.",
                 "Voice conversion remains in vc_service; realtime streaming is deferred.",
                 "Saved profiles require consent_confirmed=true.",
@@ -72,7 +73,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                         "fields": {
                             "status": "healthy/unhealthy",
                             "model_loaded": "false until the first generation request lazy-loads Dia2",
-                            "model": DIA_MODEL_NAME,
+                            "model": "Dia2-1B/Dia2-2B",
                             "gpu": "not_loaded/cuda/cpu/unknown",
                             "version": "service version",
                         },
@@ -85,6 +86,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     description="Generate simple single-speaker speech from text.",
                     inputs={
                         "text": "string, 1-5000 chars, required",
+                        "model_size": "1b or 2b, default 1b; 2b is experimental and costlier",
                         "voice_profile_id": "optional saved Dia2 voice profile id",
                         "style": "optional short nonverbal/style hint, used conservatively",
                         "temperature": "float, default 0.8",
@@ -99,7 +101,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     example=(
                         'curl -X POST https://[ENDPOINT]/tts '
                         '-H "Content-Type: application/json" '
-                        '-d \'{"text":"Hello from Dia2."}\' --output dia.wav'
+                        '-d \'{"text":"Hello from Dia2.","model_size":"1b"}\' --output dia.wav'
                     ),
                 ),
                 APIEndpointInfo(
@@ -108,6 +110,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     description="Generate Dia2-native [S1]/[S2] dialogue.",
                     inputs={
                         "script": "string with [S1]/[S2] tags, required",
+                        "model_size": "1b or 2b, default 1b; 2b is experimental and costlier",
                         "speaker_profiles": "optional object mapping S1/S2 to saved profile ids",
                         "temperature": "float, default 0.8",
                         "top_k": "integer, default 50",
@@ -121,7 +124,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     example=(
                         'curl -X POST https://[ENDPOINT]/dialogue '
                         '-H "Content-Type: application/json" '
-                        '-d \'{"script":"[S1] Hi.\\n[S2] Hello."}\' --output dialogue.wav'
+                        '-d \'{"script":"[S1] Hi.\\n[S2] Hello.","model_size":"1b"}\' --output dialogue.wav'
                     ),
                 ),
                 APIEndpointInfo(
@@ -130,6 +133,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     description="One-shot voice-conditioned TTS without saving a profile.",
                     inputs={
                         "text": "form string, 1-5000 chars, required",
+                        "model_size": "form string, 1b or 2b, default 1b",
                         "reference_audio": "WAV file, 3-30s, 6-10s optimal",
                         "reference_transcript": "form string, stored for audit/logging but Dia2 currently transcribes prefix audio internally",
                         "temperature/top_k/cfg_scale/seed": "optional generation controls",
@@ -234,6 +238,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                 top_k=request.top_k,
                 cfg_scale=request.cfg_scale,
                 seed=request.seed,
+                model_size=request.model_size,
                 prefix_speaker_1=prefix_speaker_1,
             )
 
@@ -260,6 +265,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                 top_k=request.top_k,
                 cfg_scale=request.cfg_scale,
                 seed=request.seed,
+                model_size=request.model_size,
                 prefix_speaker_1=prefix_paths.get("S1"),
                 prefix_speaker_2=prefix_paths.get("S2"),
             )
@@ -285,6 +291,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
         top_k: int = Form(default=50),
         cfg_scale: float = Form(default=2.0),
         seed: Optional[int] = Form(default=None),
+        model_size: str = Form(default=DEFAULT_DIA_MODEL_SIZE),
     ):
         """Generate one-shot conditioned speech from an uploaded reference voice."""
         del reference_transcript  # Dia2 currently performs its own prefix transcription.
@@ -309,6 +316,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                 top_k=top_k,
                 cfg_scale=cfg_scale,
                 seed=seed,
+                model_size=_validate_model_size(model_size),
                 prefix_speaker_1=temp_path,
             )
 
@@ -445,7 +453,7 @@ def _audio_response(result, mode: str, voice_profile_id: Optional[str] = None) -
         "X-Duration-Sec": f"{result.duration_sec:.2f}",
         "X-Compute-Sec": f"{result.compute_sec:.2f}",
         "X-Engine": "dia2",
-        "X-Model": DIA_MODEL_NAME,
+        "X-Model": result.model_name,
         "X-Mode": mode,
     }
     if voice_profile_id:
@@ -459,10 +467,27 @@ def _audio_header_docs() -> dict:
         "X-Duration-Sec": "Generated audio duration",
         "X-Compute-Sec": "Model generation wall-clock seconds",
         "X-Engine": "dia2",
-        "X-Model": DIA_MODEL_NAME,
+        "X-Model": "Dia2-1B or Dia2-2B",
         "X-Mode": "tts/dialogue/tts_upload",
         "X-Voice-Profile-Id": "Returned when profile conditioning was used",
     }
+
+
+def _validate_model_size(model_size: str) -> str:
+    normalized = model_size.lower()
+    if normalized not in DIA_MODELS:
+        valid_options = sorted(DIA_MODELS)
+        raise HTTPException(
+            status_code=400,
+            detail=ErrorResponse(
+                error=ErrorDetail(
+                    code="invalid_model_size",
+                    message=f"Unsupported Dia2 model_size: {model_size}",
+                    valid_options=valid_options,
+                )
+            ).model_dump(),
+        )
+    return normalized
 
 
 def _parse_style_tags(raw_tags: str) -> List[str]:

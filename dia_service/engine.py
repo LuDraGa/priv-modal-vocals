@@ -17,9 +17,9 @@ import numpy as np
 import structlog
 
 from dia_service.constants import (
-    DIA_LOCAL_DIR,
+    DEFAULT_DIA_MODEL_SIZE,
     DIA_MODEL_ID,
-    DIA_MODEL_NAME,
+    DIA_MODELS,
     MIMI_LOCAL_DIR,
     MIMI_MODEL_ID,
 )
@@ -35,6 +35,7 @@ class DiaGenerationResult:
     sample_rate: int
     duration_sec: float
     compute_sec: float
+    model_name: str
 
 
 class DiaEngine:
@@ -45,11 +46,17 @@ class DiaEngine:
         *,
         cache_dir: str = "/models/dia2/hf_cache",
         repo_id: str = DIA_MODEL_ID,
+        model_size: str = DEFAULT_DIA_MODEL_SIZE,
         device: Optional[str] = None,
         dtype: str = "bfloat16",
     ):
         self.cache_dir = Path(cache_dir)
-        self.repo_id = repo_id
+        self.model_size = model_size.lower()
+        if self.model_size not in DIA_MODELS:
+            raise ValueError(f"Unsupported Dia2 model size: {model_size}")
+        self.model_info = DIA_MODELS[self.model_size]
+        self.repo_id = repo_id if repo_id != DIA_MODEL_ID else self.model_info["id"]
+        self.model_name = self.model_info["name"]
         self.device = device
         self.dtype = dtype
         self.model = None
@@ -84,8 +91,8 @@ class DiaEngine:
                 runtime_device = "cuda" if torch.cuda.is_available() else "cpu"
 
             model_path = self._find_local_model_dir(
-                local_dir=Path(DIA_LOCAL_DIR),
-                repo_id=DIA_MODEL_ID,
+                local_dir=Path(self.model_info["local_dir"]),
+                repo_id=self.repo_id,
                 require_weights=True,
             )
             mimi_path = self._find_local_model_dir(
@@ -99,6 +106,7 @@ class DiaEngine:
             logger.info(
                 "dia_engine.loading",
                 repo_id=self.repo_id,
+                model_size=self.model_size,
                 asset_snapshot=str(model_path),
                 mimi_snapshot=str(mimi_path),
                 device=runtime_device,
@@ -121,7 +129,7 @@ class DiaEngine:
 
             logger.info(
                 "dia_engine.loaded",
-                model=DIA_MODEL_NAME,
+                model=self.model_name,
                 sample_rate=self.sample_rate,
                 device=self.device,
             )
@@ -215,6 +223,7 @@ class DiaEngine:
                 top_k=top_k,
                 cfg_scale=cfg_scale,
                 seed=seed,
+                model=self.model_name,
             )
 
             start = time.monotonic()
@@ -234,6 +243,7 @@ class DiaEngine:
 
             logger.info(
                 "dia_engine.generate.complete",
+                model=self.model_name,
                 audio_size=len(pcm_bytes),
                 duration_sec=duration_sec,
                 compute_sec=compute_sec,
@@ -244,6 +254,7 @@ class DiaEngine:
                 sample_rate=sample_rate,
                 duration_sec=duration_sec,
                 compute_sec=compute_sec,
+                model_name=self.model_name,
             )
 
         except Exception as e:

@@ -43,7 +43,7 @@ image = (
     .add_local_python_source("shared")
 )
 
-_dia_engine = None
+_dia_engines = {}
 _profile_store = None
 
 
@@ -52,32 +52,36 @@ class LazyDiaEngine:
 
     @property
     def _loaded(self):
-        return _dia_engine is not None and _dia_engine._loaded
+        return any(engine._loaded for engine in _dia_engines.values())
 
     @property
     def device(self):
-        if _dia_engine is None:
+        if not _dia_engines:
             return "not_loaded"
-        return _dia_engine.device or "unknown"
+        devices = sorted({engine.device or "unknown" for engine in _dia_engines.values()})
+        return ",".join(devices)
 
     def generate(self, **kwargs):
-        return get_dia_engine().generate(**kwargs)
+        model_size = kwargs.pop("model_size", "1b")
+        return get_dia_engine(model_size=model_size).generate(**kwargs)
 
 
-def get_dia_engine():
-    """Get or initialize Dia2 engine once per container."""
-    global _dia_engine
-    if _dia_engine is None:
+def get_dia_engine(*, model_size: str = "1b"):
+    """Get or initialize a Dia2 engine once per model size per container."""
+    global _dia_engines
+    model_size = model_size.lower()
+    if model_size not in _dia_engines:
         import structlog
 
         from dia_service.engine import DiaEngine
 
         logger = structlog.get_logger()
-        logger.info("dia_engine.initializing")
-        _dia_engine = DiaEngine(cache_dir="/models/dia2/hf_cache")
-        _dia_engine.load_model()
-        logger.info("dia_engine.initialized")
-    return _dia_engine
+        logger.info("dia_engine.initializing", model_size=model_size)
+        engine = DiaEngine(cache_dir="/models/dia2/hf_cache", model_size=model_size)
+        engine.load_model()
+        _dia_engines[model_size] = engine
+        logger.info("dia_engine.initialized", model_size=model_size)
+    return _dia_engines[model_size]
 
 
 def get_profile_store():
@@ -92,11 +96,11 @@ def get_profile_store():
 
 @app.function(
     image=image,
-    gpu="A10G",
+    gpu="L40S",
     volumes={"/models": volume},
     secrets=[huggingface_secret],
     min_containers=0,
-    timeout=600,
+    timeout=900,
     enable_memory_snapshot=True,
     scaledown_window=60,
 )
@@ -120,7 +124,7 @@ def fastapi_app():
     web_app = FastAPI(
         title="Dia2 Expressive TTS API",
         description=(
-            "Batch expressive TTS and dialogue generation powered by Nari Labs Dia2-1B. "
+            "Batch expressive TTS and dialogue generation powered by Nari Labs Dia2. "
             "Includes reusable voice profiles for prefix-audio conditioning."
         ),
         version="0.1.0",

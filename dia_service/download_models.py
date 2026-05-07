@@ -1,4 +1,4 @@
-"""Download Dia2-1B assets to Modal Volume.
+"""Download Dia2 assets to Modal Volume.
 
 Run before first deployment:
     modal run dia_service/download_models.py
@@ -12,7 +12,7 @@ import sys
 
 import modal
 
-from dia_service.constants import DIA_LOCAL_DIR, DIA_MODEL_ID, MIMI_LOCAL_DIR, MIMI_MODEL_ID
+from dia_service.constants import DIA_MODELS, MIMI_LOCAL_DIR, MIMI_MODEL_ID
 
 app = modal.App("dia2-download-models")
 
@@ -50,7 +50,7 @@ image = (
     timeout=1800,
 )
 def download_models():
-    """Download Dia2-1B and initialize runtime assets."""
+    """Download Dia2-1B, Dia2-2B, and shared Mimi assets."""
     os.environ["HF_HOME"] = "/models/dia2/hf_cache"
     os.environ["HF_HUB_CACHE"] = "/models/dia2/hf_cache"
     os.environ["TORCH_HOME"] = "/models/dia2/hf_cache/torch"
@@ -59,14 +59,24 @@ def download_models():
 
     from huggingface_hub import snapshot_download
 
-    print(f"Downloading Dia2 assets from {DIA_MODEL_ID}...")
-    snapshot_download(
-        repo_id=DIA_MODEL_ID,
-        cache_dir="/models/dia2/hf_cache",
-        local_dir=DIA_LOCAL_DIR,
-        token=os.environ["HF_TOKEN"],
-        max_workers=4,
-    )
+    downloaded_models = []
+    for model_size, model_info in DIA_MODELS.items():
+        print(f"Downloading Dia2 {model_size} assets from {model_info['id']}...")
+        snapshot_download(
+            repo_id=model_info["id"],
+            cache_dir="/models/dia2/hf_cache",
+            local_dir=model_info["local_dir"],
+            token=os.environ["HF_TOKEN"],
+            max_workers=4,
+        )
+        downloaded_models.append(
+            {
+                "model_size": model_size,
+                "model": model_info["id"],
+                "local_dir": model_info["local_dir"],
+            }
+        )
+
     print(f"Downloading Mimi codec assets from {MIMI_MODEL_ID}...")
     snapshot_download(
         repo_id=MIMI_MODEL_ID,
@@ -80,10 +90,9 @@ def download_models():
     volume.commit()
     return {
         "success": True,
-        "model": DIA_MODEL_ID,
+        "models": downloaded_models,
         "mimi": MIMI_MODEL_ID,
         "cache_dir": "/models/dia2/hf_cache",
-        "dia_local_dir": DIA_LOCAL_DIR,
         "mimi_local_dir": MIMI_LOCAL_DIR,
     }
 
