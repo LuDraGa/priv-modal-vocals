@@ -13,11 +13,16 @@ import modal
 app = modal.App("dia2-tts-api")
 
 volume = modal.Volume.from_name("dia2-models-v1", create_if_missing=True)
+huggingface_secret = modal.Secret.from_name(
+    "huggingface-secret",
+    required_keys=["HF_TOKEN"],
+)
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .run_commands("apt-get update && apt-get install -y ffmpeg git libsndfile1")
     .run_commands("git clone --depth 1 https://github.com/nari-labs/dia2.git /opt/dia2")
+    .env({"HF_HUB_DISABLE_XET": "1", "HF_HUB_ENABLE_HF_TRANSFER": "1"})
     .pip_install(
         "torch==2.8.0",
         "torchaudio==2.8.0",
@@ -27,6 +32,7 @@ image = (
         "structlog>=25.5.0",
         "python-multipart",
         "huggingface-hub>=0.24.7",
+        "hf-transfer>=0.1.9",
         "soundfile>=0.12.1",
         "transformers>=4.55.3",
         "safetensors==0.5.3",
@@ -88,6 +94,7 @@ def get_profile_store():
     image=image,
     gpu="A10G",
     volumes={"/models": volume},
+    secrets=[huggingface_secret],
     min_containers=0,
     timeout=600,
     enable_memory_snapshot=True,

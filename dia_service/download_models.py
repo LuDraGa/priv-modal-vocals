@@ -12,21 +12,27 @@ import sys
 
 import modal
 
-from dia_service.constants import DIA_MODEL_ID, MIMI_MODEL_ID
+from dia_service.constants import DIA_LOCAL_DIR, DIA_MODEL_ID, MIMI_LOCAL_DIR, MIMI_MODEL_ID
 
 app = modal.App("dia2-download-models")
 
 volume = modal.Volume.from_name("dia2-models-v1", create_if_missing=True)
+huggingface_secret = modal.Secret.from_name(
+    "huggingface-secret",
+    required_keys=["HF_TOKEN"],
+)
 
 image = (
     modal.Image.debian_slim(python_version="3.12")
     .run_commands("apt-get update && apt-get install -y ffmpeg git libsndfile1")
     .run_commands("git clone --depth 1 https://github.com/nari-labs/dia2.git /opt/dia2")
+    .env({"HF_HUB_DISABLE_XET": "1", "HF_HUB_ENABLE_HF_TRANSFER": "1"})
     .pip_install(
         "torch==2.8.0",
         "torchaudio==2.8.0",
         "numpy>=2.1.0,<2.4",
         "huggingface-hub>=0.24.7",
+        "hf-transfer>=0.1.9",
         "soundfile>=0.12.1",
         "transformers>=4.55.3",
         "safetensors==0.5.3",
@@ -40,6 +46,7 @@ image = (
 @app.function(
     image=image,
     volumes={"/models": volume},
+    secrets=[huggingface_secret],
     timeout=1800,
 )
 def download_models():
@@ -53,9 +60,21 @@ def download_models():
     from huggingface_hub import snapshot_download
 
     print(f"Downloading Dia2 assets from {DIA_MODEL_ID}...")
-    snapshot_download(repo_id=DIA_MODEL_ID, cache_dir="/models/dia2/hf_cache")
+    snapshot_download(
+        repo_id=DIA_MODEL_ID,
+        cache_dir="/models/dia2/hf_cache",
+        local_dir=DIA_LOCAL_DIR,
+        token=os.environ["HF_TOKEN"],
+        max_workers=4,
+    )
     print(f"Downloading Mimi codec assets from {MIMI_MODEL_ID}...")
-    snapshot_download(repo_id=MIMI_MODEL_ID, cache_dir="/models/dia2/hf_cache")
+    snapshot_download(
+        repo_id=MIMI_MODEL_ID,
+        cache_dir="/models/dia2/hf_cache",
+        local_dir=MIMI_LOCAL_DIR,
+        token=os.environ["HF_TOKEN"],
+        max_workers=1,
+    )
     print("Dia2 model files cached. Runtime initialization is deferred to modal serve/deploy.")
 
     volume.commit()
@@ -64,6 +83,8 @@ def download_models():
         "model": DIA_MODEL_ID,
         "mimi": MIMI_MODEL_ID,
         "cache_dir": "/models/dia2/hf_cache",
+        "dia_local_dir": DIA_LOCAL_DIR,
+        "mimi_local_dir": MIMI_LOCAL_DIR,
     }
 
 

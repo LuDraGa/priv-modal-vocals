@@ -16,7 +16,13 @@ from typing import Optional
 import numpy as np
 import structlog
 
-from dia_service.constants import DIA_MODEL_ID, DIA_MODEL_NAME, MIMI_MODEL_ID
+from dia_service.constants import (
+    DIA_LOCAL_DIR,
+    DIA_MODEL_ID,
+    DIA_MODEL_NAME,
+    MIMI_LOCAL_DIR,
+    MIMI_MODEL_ID,
+)
 
 logger = structlog.get_logger()
 
@@ -77,15 +83,23 @@ class DiaEngine:
             if runtime_device is None:
                 runtime_device = "cuda" if torch.cuda.is_available() else "cpu"
 
-            snapshot_path = self._find_cached_snapshot()
-            mimi_path = self._find_cached_snapshot(MIMI_MODEL_ID)
-            config_path = snapshot_path / "config.json"
-            weights_path = snapshot_path / "model.safetensors"
+            model_path = self._find_local_model_dir(
+                local_dir=Path(DIA_LOCAL_DIR),
+                repo_id=DIA_MODEL_ID,
+                require_weights=True,
+            )
+            mimi_path = self._find_local_model_dir(
+                local_dir=Path(MIMI_LOCAL_DIR),
+                repo_id=MIMI_MODEL_ID,
+                require_weights=True,
+            )
+            config_path = model_path / "config.json"
+            weights_path = model_path / "model.safetensors"
 
             logger.info(
                 "dia_engine.loading",
                 repo_id=self.repo_id,
-                asset_snapshot=str(snapshot_path),
+                asset_snapshot=str(model_path),
                 mimi_snapshot=str(mimi_path),
                 device=runtime_device,
                 dtype=self.dtype,
@@ -95,12 +109,12 @@ class DiaEngine:
             self.model = Dia2.from_local(
                 config_path=config_path,
                 weights_path=weights_path,
-                tokenizer_id=str(snapshot_path),
+                tokenizer_id=str(model_path),
                 mimi_id=str(mimi_path),
                 device=runtime_device,
                 dtype=self.dtype,
             )
-            self._asset_snapshot = snapshot_path
+            self._asset_snapshot = model_path
             self.device = runtime_device
             self.sample_rate = int(self.model.sample_rate)
             self._loaded = True
@@ -116,7 +130,19 @@ class DiaEngine:
             logger.error("dia_engine.load_failed", error=str(e))
             raise RuntimeError(f"Failed to load Dia2 model: {e}") from e
 
-    def _find_cached_snapshot(self, repo_id: str = DIA_MODEL_ID) -> Path:
+    def _find_local_model_dir(
+        self,
+        *,
+        local_dir: Path,
+        repo_id: str,
+        require_weights: bool,
+    ) -> Path:
+        """Return direct local model dir, falling back to HF cache snapshots."""
+        if self._is_complete_model_dir(local_dir, require_weights=require_weights):
+            return local_dir
+        return self._find_cached_snapshot(repo_id=repo_id, require_weights=require_weights)
+
+    def _find_cached_snapshot(self, repo_id: str, require_weights: bool) -> Path:
         """Return the local Hugging Face snapshot path for cached repo assets."""
         repo_cache_dir = self.cache_dir / f"models--{repo_id.replace('/', '--')}"
         snapshots_dir = repo_cache_dir / "snapshots"
@@ -132,15 +158,21 @@ class DiaEngine:
             reverse=True,
         )
         for snapshot in candidates:
-            if repo_id == DIA_MODEL_ID:
-                if (snapshot / "config.json").exists() and (snapshot / "model.safetensors").exists():
-                    return snapshot
-            elif any(snapshot.iterdir()):
+            if self._is_complete_model_dir(snapshot, require_weights=require_weights):
                 return snapshot
 
         raise FileNotFoundError(
             f"No complete cached snapshot for {repo_id} under {snapshots_dir}"
         )
+
+    def _is_complete_model_dir(self, path: Path, require_weights: bool) -> bool:
+        if not path.exists() or not (path / "config.json").exists():
+            return False
+        if require_weights and not (
+            (path / "model.safetensors").exists() or (path / "pytorch_model.bin").exists()
+        ):
+            return False
+        return True
 
     def generate(
         self,
