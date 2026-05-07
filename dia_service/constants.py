@@ -18,4 +18,6 @@ DIA_MODELS = {
 MIMI_MODEL_ID = "kyutai/mimi"
 DIA_LOCAL_DIR = "/models/dia2/local/Dia2-1B"
 MIMI_LOCAL_DIR = "/models/dia2/local/mimi"
+WHISPER_MODEL_ID = "openai/whisper-large-v3"
+WHISPER_LOCAL_DIR = "/models/dia2/local/whisper-large-v3"
 SUPPORTED_LANGUAGES = ["en"]

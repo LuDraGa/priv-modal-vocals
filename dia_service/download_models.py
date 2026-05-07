@@ -12,7 +12,13 @@ import sys
 
 import modal
 
-from dia_service.constants import DIA_MODELS, MIMI_LOCAL_DIR, MIMI_MODEL_ID
+from dia_service.constants import (
+    DIA_MODELS,
+    MIMI_LOCAL_DIR,
+    MIMI_MODEL_ID,
+    WHISPER_LOCAL_DIR,
+    WHISPER_MODEL_ID,
+)
 
 app = modal.App("dia2-download-models")
 
@@ -85,6 +91,14 @@ def download_models():
         token=os.environ["HF_TOKEN"],
         max_workers=1,
     )
+    print(f"Downloading {WHISPER_MODEL_ID} (required by nari-labs/dia2 for prefix conditioning)...")
+    snapshot_download(
+        repo_id=WHISPER_MODEL_ID,
+        cache_dir="/models/dia2/hf_cache",
+        local_dir=WHISPER_LOCAL_DIR,
+        token=os.environ["HF_TOKEN"],
+        max_workers=2,
+    )
     print("Dia2 model files cached. Runtime initialization is deferred to modal serve/deploy.")
 
     volume.commit()
@@ -92,8 +106,10 @@ def download_models():
         "success": True,
         "models": downloaded_models,
         "mimi": MIMI_MODEL_ID,
+        "whisper": WHISPER_MODEL_ID,
         "cache_dir": "/models/dia2/hf_cache",
         "mimi_local_dir": MIMI_LOCAL_DIR,
+        "whisper_local_dir": WHISPER_LOCAL_DIR,
     }
 
 

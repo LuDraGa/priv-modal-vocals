@@ -44,9 +44,17 @@ The downloader materializes model files into direct Volume paths:
 - `/models/dia2/local/Dia2-1B`
 - `/models/dia2/local/Dia2-2B`
 - `/models/dia2/local/mimi`
+- `/models/dia2/local/whisper-large-v3`
 
 The Dia2-2B model reuses the same Mimi codec assets, so only the Dia2 checkpoint
 adds extra storage and download time.
+
+Prefix conditioning also needs `openai/whisper-large-v3`. Dia2 pulls this in
+only when prefix audio is used: `Dia2.generate(...)` builds a prefix plan,
+`dia2/runtime/voice_clone.py` lazily imports `whisper_timestamped`, then calls
+`wts.load_model("openai/whisper-large-v3", ...)` to transcribe the prefix file.
+Preloading it into the Volume keeps saved voice profiles compatible with
+`TRANSFORMERS_OFFLINE=1`.
 
 Serve a dev endpoint:
 
