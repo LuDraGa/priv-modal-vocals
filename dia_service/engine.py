@@ -22,6 +22,7 @@ from dia_service.constants import (
     DIA_MODELS,
     MIMI_LOCAL_DIR,
     MIMI_MODEL_ID,
+    WHISPER_LOCAL_DIR,
 )
 
 logger = structlog.get_logger()
@@ -85,6 +86,7 @@ class DiaEngine:
             from dia_service.compat import patch_torch_cudnn_conv
 
             patch_torch_cudnn_conv()
+            self._patch_dia2_prefix_whisper()
 
             runtime_device = self.device
             if runtime_device is None:
@@ -137,6 +139,41 @@ class DiaEngine:
         except Exception as e:
             logger.error("dia_engine.load_failed", error=str(e))
             raise RuntimeError(f"Failed to load Dia2 model: {e}") from e
+
+    def _patch_dia2_prefix_whisper(self) -> None:
+        """Force Dia2 prefix transcription to use the preloaded local Whisper model."""
+        from dia2.runtime import voice_clone
+
+        if getattr(voice_clone, "_voice_stack_whisper_patch", False):
+            return
+
+        def transcribe_words(audio_path: str, device, language: Optional[str] = None):
+            import whisper_timestamped as wts
+
+            model = wts.load_model(WHISPER_LOCAL_DIR, device=str(device))
+            result = wts.transcribe(model, audio_path, language=language)
+
+            words = []
+            for segment in result.get("segments", []):
+                for word in segment.get("words", []):
+                    text = (word.get("text") or word.get("word") or "").strip()
+                    if not text:
+                        continue
+                    words.append(
+                        voice_clone.WhisperWord(
+                            text=text,
+                            start=float(word.get("start", 0.0)),
+                            end=float(word.get("end", 0.0)),
+                        )
+                    )
+            return words
+
+        voice_clone.transcribe_words = transcribe_words
+        voice_clone._voice_stack_whisper_patch = True
+        logger.info(
+            "dia_engine.prefix_whisper_patched",
+            whisper_model_path=WHISPER_LOCAL_DIR,
+        )
 
     def _find_local_model_dir(
         self,
