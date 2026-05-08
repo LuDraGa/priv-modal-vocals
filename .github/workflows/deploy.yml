@@ -8,6 +8,7 @@ on:
       - 'whisper_service/**'
       - 'vc_service/**'
       - 'dia_service/**'
+      - 'dia16_service/**'
       - 'shared/**'
       - '.github/workflows/deploy.yml'
   workflow_dispatch:  # Allow manual trigger
@@ -21,6 +22,7 @@ jobs:
       whisper: ${{ steps.filter.outputs.whisper }}
       vc: ${{ steps.filter.outputs.vc }}
       dia: ${{ steps.filter.outputs.dia }}
+      dia16: ${{ steps.filter.outputs.dia16 }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -40,6 +42,9 @@ jobs:
               - 'shared/**'
             dia:
               - 'dia_service/**'
+              - 'shared/**'
+            dia16:
+              - 'dia16_service/**'
               - 'shared/**'
 
   deploy-coqui:
@@ -172,4 +177,37 @@ jobs:
           echo "Waiting 10s for deployment to stabilize..."
           sleep 10
           echo "Deployment complete! Dia2 API is live."
+        # TODO: Add actual health check curl once endpoint URL is known
+
+  deploy-dia16:
+    name: Deploy Dia 1.6B TTS API
+    runs-on: ubuntu-latest
+    needs: detect-changes
+    if: needs.detect-changes.outputs.dia16 == 'true' || github.event_name == 'workflow_dispatch'
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Modal
+        run: |
+          pip install --upgrade pip
+          pip install modal
+
+      - name: Deploy Dia 1.6B Service
+        run: modal deploy dia16_service/main.py
+        env:
+          MODAL_TOKEN_ID: ${{ secrets.MODAL_TOKEN_ID }}
+          MODAL_TOKEN_SECRET: ${{ secrets.MODAL_TOKEN_SECRET }}
+
+      - name: Health Check
+        run: |
+          echo "Waiting 10s for deployment to stabilize..."
+          sleep 10
+          echo "Deployment complete! Dia 1.6B API is live."
         # TODO: Add actual health check curl once endpoint URL is known

@@ -1,0 +1,15 @@
+"""Shared Dia 1.6B service constants."""
+
+DIA16_MODEL_ID = "nari-labs/Dia-1.6B-0626"
+DIA16_MODEL_NAME = "Dia-1.6B-0626"
+DIA16_LOCAL_DIR = "/models/dia16/local/Dia-1.6B-0626"
+DIA16_DAC_MODEL_ID = "descript/dac_44khz"
+DIA16_DAC_LOCAL_DIR = "/models/dia16/local/dac_44khz"
+DIA16_PREDEFINED_VOICES_REPO = "https://github.com/devnen/Dia-TTS-Server.git"
+DIA16_PREDEFINED_VOICES_DIR = "/models/dia16/predefined_voices"
+DIA16_SAMPLE_RATE = 44100
+DIA16_SUPPORTED_LANGUAGES = ["en"]
+DIA16_REFERENCE_MIN_SEC = 5.0
+DIA16_REFERENCE_MAX_SEC = 20.0
+DIA16_REFERENCE_OPTIMAL_MIN_SEC = 5.0
+DIA16_REFERENCE_OPTIMAL_MAX_SEC = 10.0

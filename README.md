@@ -27,6 +27,14 @@ Production-ready Text-to-Speech and Speech-to-Text APIs hosted on Modal, designe
 - **Reusable Voice Profiles**: Store reference audio, transcript, consent, and rich metadata
 - **Cost-Conscious Modal Hosting**: Scale-to-zero L40S deployment with compute headers
 
+### Dia 1.6B High-Fidelity TTS API (✅ Implemented)
+- **Dia-1.6B-0626**: Nari Labs high-fidelity expressive dialogue model
+- **Audio-Prompt Conditioning**: Reference audio plus transcript for voice/tone reuse
+- **Reusable Voice Profiles**: Separate Dia16 profile catalog, not shared with Dia2
+- **Predefined Profiles**: Optional 43 preloaded third-party voice prompts for low-input voice selection
+- **44.1 kHz Output**: Higher-fidelity WAV output for batch generation
+- **Clone Quality Guardrails**: English-only profiles, 5-20s references, exact `[S1]` transcripts
+
 ## Quick Start
 
 ### 1. Install Dependencies
@@ -66,6 +74,10 @@ modal run whisper_service/download_models.py
 # Download Dia2-1B, Dia2-2B, and shared Mimi assets to Modal Volume
 # This is a one-time setup
 modal run dia_service/download_models.py
+
+# Download Dia-1.6B-0626 assets to Modal Volume
+# This is a one-time setup
+modal run dia16_service/download_models.py
 ```
 
 ### 4. Test Locally
@@ -83,6 +95,11 @@ modal serve whisper_service/main.py
 modal serve dia_service/main.py
 # Test endpoints: GET /health, GET /api-info, POST /tts, POST /dialogue,
 # POST /tts-with-upload, /voice-profiles CRUD
+
+# Serve Dia 1.6B high-fidelity TTS dev endpoint (creates temporary URL)
+modal serve dia16_service/main.py
+# Test endpoints: GET /health, GET /api-info, POST /tts, POST /dialogue,
+# POST /tts-with-upload, /voice-profiles CRUD
 ```
 
 ### 5. Deploy to Production
@@ -91,6 +108,7 @@ modal serve dia_service/main.py
 # Manual deployment
 modal deploy coqui_service/main.py
 modal deploy dia_service/main.py
+modal deploy dia16_service/main.py
 
 # Or push to GitHub (auto-deploys via GitHub Actions)
 git add .
