@@ -57,8 +57,9 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
             model=f"{DIA_MODEL_NAME}/Dia2-2B",
             notes=[
                 "Dia2 v1 here is English-only batch WAV generation.",
-                "model_size defaults to 1b; 2b is experimental, heavier, and hosted on L40S.",
-                "Dia2 has no built-in fixed voice catalog; /voice-profiles creates one.",
+                "model_size defaults to 1b; set model_size=2b to use Dia2-2B. 2b is experimental, heavier, and hosted on L40S.",
+                "Dia2 has no built-in fixed voice catalog and no /predefined-voice-profiles endpoint; /voice-profiles creates caller-owned profiles.",
+                "The 43 predefined prompt profiles are available only on the separate Dia16 service.",
                 "Voice conversion remains in vc_service; realtime streaming is deferred.",
                 "Saved profiles require consent_confirmed=true.",
             ],
@@ -86,7 +87,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     description="Generate simple single-speaker speech from text.",
                     inputs={
                         "text": "string, 1-5000 chars, required",
-                        "model_size": "1b or 2b, default 1b; 2b is experimental and costlier",
+                        "model_size": "1b or 2b, default 1b; 2b uses Dia2-2B and is experimental/costlier",
                         "voice_profile_id": "optional saved Dia2 voice profile id",
                         "style": "optional short nonverbal/style hint, used conservatively",
                         "temperature": "float, default 0.8",
@@ -110,7 +111,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     description="Generate Dia2-native [S1]/[S2] dialogue.",
                     inputs={
                         "script": "string with [S1]/[S2] tags, required",
-                        "model_size": "1b or 2b, default 1b; 2b is experimental and costlier",
+                        "model_size": "1b or 2b, default 1b; 2b uses Dia2-2B and is experimental/costlier",
                         "speaker_profiles": "optional object mapping S1/S2 to saved profile ids",
                         "temperature": "float, default 0.8",
                         "top_k": "integer, default 50",
@@ -133,7 +134,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     description="One-shot voice-conditioned TTS without saving a profile.",
                     inputs={
                         "text": "form string, 1-5000 chars, required",
-                        "model_size": "form string, 1b or 2b, default 1b",
+                        "model_size": "form string, 1b or 2b, default 1b; 2b uses Dia2-2B and is experimental/costlier",
                         "reference_audio": "WAV file, 3-30s, 6-10s optimal",
                         "reference_transcript": "form string, stored for audit/logging but Dia2 currently transcribes prefix audio internally",
                         "temperature/top_k/cfg_scale/seed": "optional generation controls",
@@ -156,7 +157,7 @@ def create_routes(app: FastAPI, engine: DiaEngine, profile_store: VoiceProfileSt
                     inputs={
                         "name": "form string, required",
                         "reference_audio": "WAV file, 3-30s, 6-10s optimal",
-                        "reference_transcript": "form string, required",
+                        "reference_transcript": "form string, required; stored with the profile for audit/metadata, while Dia2 transcribes prefix audio internally at generation time",
                         "gender/accent/language/style_tags/use_case/quality_rating/notes": "profile metadata",
                         "consent_confirmed": "boolean, must be true",
                     },
